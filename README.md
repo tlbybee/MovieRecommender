@@ -1,12 +1,19 @@
-# BookRecommender
+# MovieRecommender
 
-This is code for a shiny app for a book recommender based on collaborative filtering. 
+This is code for a shiny app for a movie recommender based on 2 types of recommender systems. 
 
-For more information: See this [kernel](https://www.kaggle.com/philippsp/book-recommender-collaborative-filtering-shiny) on Kaggle.com.
+The app is can be found here: https://tbybee.shinyapps.io/MovieRecommender/ 
 
-Credits:
-My thanks go to the following persons:
-1. Stefan Nicklic for his [improved implementation of collaborative filtering](https://github.com/smartcat-labs/collaboratory).
-2. Stefan Wilhelm for providing [ShinyRatingInput](https://github.com/stefanwilhelm/ShinyRatingInput).
-3. Dean Attali for his work on [shinyJS](https://github.com/daattali/shinyjs).
-4. Kaggle user [Foxtrot](https://www.kaggle.com/zygmunt) for providing the [goodbooks dataset](https://www.kaggle.com/zygmunt/goodbooks-10k).
+Acknowledgements
+
+Understanding recommenderlab and recommendation engines: https://cran.r-project.org/web/packages/recommenderlab/vignettes/recommenderlab.pdf 
+
+https://liangfgithub.github.io/Rcode_W13_Movie_RS.nb.html 
+
+Importing data and boilerplate for the recommender engines: Understanding the dataset and some methods extracing genres: https://liangfgithub.github.io/Rcode_W13_Movie_EDA.nb.html
+
+Building the app: Piazza Post @880 Project 4 App: What we have tried, Liang, Feng
+
+Formatting new data for prediction correctly: Piazza Post response to @1013 How to input item similarity matrix for IBCF, Liang, Feng
+
+App design base: https://github.com/pspachtholz/BookRecommender

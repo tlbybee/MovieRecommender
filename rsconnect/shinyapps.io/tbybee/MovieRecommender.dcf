@@ -1,0 +1,12 @@
+name: MovieRecommender
+title: MovieRecommender
+username:
+account: tbybee
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 3397515
+bundleId: 3985387
+url: https://tbybee.shinyapps.io/MovieRecommender/
+when: 1607919676.08208
+asMultiple: FALSE
+asStatic: FALSE

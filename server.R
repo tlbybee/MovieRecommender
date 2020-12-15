@@ -1,113 +1,190 @@
 ## server.R
 
-# load functions
-source('functions/cf_algorithm.R') # collaborative filtering
-source('functions/similarity_measures.R') # similarity measures
+# load functions and model
+#source('functions/cf_algorithm.R') # collaborative filtering
+#source('functions/similarity_measures.R') # similarity measures
+rec_ibcf = readRDS("data/ibcf_model.rds")
+small_data = readRDS("data/small_data.rds")
+top_10 = readRDS("data/top_10_info.rds")
+
 
 # define functions
-get_user_ratings <- function(value_list) {
-  dat <- data.table(book_id = sapply(strsplit(names(value_list), "_"), function(x) ifelse(length(x) > 1, x[[2]], NA)),
-                    rating = unlist(as.character(value_list)))
-  dat <- dat[!is.null(rating) & !is.na(book_id)]
-  dat[rating == " ", rating := 0]
-  dat[, ':=' (book_id = as.numeric(book_id), rating = as.numeric(rating))]
-  dat <- dat[rating > 0]
+get_user_ratings = function(value_list) {
+  dat = data.table(
+    MovieID = sapply(strsplit(names(value_list), "_"),
+                     function(x)
+                       ifelse(length(x) > 1, x[[2]], NA)),
+    Rating = unlist(as.character(value_list))
+  )
+  dat = dat[!is.null(Rating) & !is.na(MovieID)]
+  dat[Rating == " ", Rating := 0]
+  dat[, ':=' (MovieID = as.numeric(MovieID), Rating = as.numeric(Rating))]
+  dat = dat[Rating > 0]
   
-  # get the indices of the ratings
-  # add the user ratings to the existing rating matrix
-  user_ratings <- sparseMatrix(i = dat$book_id, 
-                               j = rep(1,nrow(dat)), 
-                               x = dat$rating, 
-                               dims = c(nrow(ratingmat), 1))
+  n.item = ncol(small_data)
+  new.ratings = rep(NA, n.item)
+  new.ratings[dat$MovieID] = dat$Rating
+  new.user = matrix(
+    new.ratings,
+    nrow = 1,
+    ncol = n.item,
+    dimnames = list(user = paste('newUser'),
+                    item = colnames(small_data))
+  )
+  new.Rmat = as(new.user, 'realRatingMatrix')
+  new.Rmat
 }
 
-# read in data
-books <- fread('data/books.csv')
-ratings <- fread('data/ratings_cleaned.csv')
 
-# reshape to books x user matrix 
-ratingmat <- sparseMatrix(ratings$book_id, ratings$user_id, x=ratings$rating) # book x user matrix
-ratingmat <- ratingmat[, unique(summary(ratingmat)$j)] # remove users with no ratings
-dimnames(ratingmat) <- list(book_id = as.character(1:10000), user_id = as.character(sort(unique(ratings$user_id))))
+
+# read in data
+myurl = "https://liangfgithub.github.io/MovieData/"
+movies = readLines(paste0(myurl, 'movies.dat?raw=true'))
+movies = strsplit(movies,
+                  split = "::",
+                  fixed = TRUE,
+                  useBytes = TRUE)
+movies = matrix(unlist(movies), ncol = 3, byrow = TRUE)
+movies = data.frame(movies, stringsAsFactors = FALSE)
+colnames(movies) = c('MovieID', 'Title', 'Genres')
+movies$MovieID = as.integer(movies$MovieID)
+movies$Title = iconv(movies$Title, "latin1", "UTF-8")
+
+small_image_url = "https://liangfgithub.github.io/MovieImages/"
+movies$image_url = sapply(movies$MovieID,
+                          function(x)
+                            paste0(small_image_url, x, '.jpg?raw=true'))
 
 shinyServer(function(input, output, session) {
-  
-  # show the books to be rated
-  output$ratings <- renderUI({
-    num_rows <- 20
-    num_books <- 6 # books per row
+  output$genre_recs <- renderUI({
+    g = input$genreInputId
+    if(g == 'Children\'s'){g ='Children.s'}
+    if(g == 'Film-Noir'){g = 'Film.Noir'}
+    if(g == 'Sci-Fi'){g = "Sci.Fi"}
+    top = top_10[which(top_10[,1]==g),][2:11]
+    
+    movienames = c()
+    for(i in 1:10){
+      name = movies$Title[which(movies$MovieID==top[i])]
+      movienames = c(movienames,  name)
+    }
+    
+    recom_result <- data.table(
+      Rank = 1:10,
+      MovieID = top,
+      Title = movienames
+    ) 
+    
+    
+    num_rows <- 2
+    num_movies <- 5 # movies per row
     
     lapply(1:num_rows, function(i) {
-      list(fluidRow(lapply(1:num_books, function(j) {
-        list(box(width = 2,
-                 div(style = "text-align:center", img(src = books$image_url[(i - 1) * num_books + j], style = "max-height:150")),
-                 div(style = "text-align:center; color: #999999; font-size: 80%", books$authors[(i - 1) * num_books + j]),
-                 div(style = "text-align:center", strong(books$title[(i - 1) * num_books + j])),
-                 div(style = "text-align:center; font-size: 150%; color: #f0ad4e;", ratingInput(paste0("select_", books$book_id[(i - 1) * num_books + j]), label = "", dataStop = 5)))) #00c0ef
+      list(fluidRow(lapply(1:num_movies, function(j) {
+        box(
+          width = 2,
+          status = "success",
+          solidHeader = TRUE,
+          title = paste0("Rank ", (i - 1) * num_movies + j),
+          
+          div(style = "text-align:center",
+              a(
+                img(src = movies$image_url[which(recom_result$MovieID[(i - 1) * num_movies + j] == movies$MovieID)], height = 150)
+              )),
+          div(style = "text-align:center; font-size: 100%",
+              strong(movies$Title[which(recom_result$MovieID[(i - 1) * num_movies + j] == movies$MovieID)]))
+          
+        )
+      }))) # columns
+    }) # rows
+    })
+
+##########################################################################################################  
+#system 2 code
+    # show the movies to be rated
+  output$ratings <- renderUI({
+    num_rows <- 20
+    num_movies <- 6 # movies per row
+    
+    
+    lapply(1:num_rows, function(i) {
+      list(fluidRow(lapply(1:num_movies, function(j) {
+        list(box(
+          width = 2,
+          div(style = "text-align:center", img(
+            src = movies$image_url[(i - 1) * num_movies + j], height = 150
+          )),
+          div(style = "text-align:center", strong(movies$Title[(i - 1) * num_movies + j])),
+          div(style = "text-align:center; font-size: 150%; color: #f0ad4e;", ratingInput(
+            paste0("select_", movies$MovieID[(i - 1) * num_movies + j]),
+            label = "",
+            dataStop = 5
+          ))
+        ))
       })))
     })
   })
   
-  # Calculate recommendations when the sbumbutton is clicked
+  # Calculate recommendations when the submit button is clicked
   df <- eventReactive(input$btn, {
-    withBusyIndicatorServer("btn", { # showing the busy indicator
-        # hide the rating container
-        useShinyjs()
-        jsCode <- "document.querySelector('[data-widget=collapse]').click();"
-        runjs(jsCode)
-        
-        # get the user's rating data
-        value_list <- reactiveValuesToList(input)
-        user_ratings <- get_user_ratings(value_list)
-        
-        # add user's ratings as first column to rating matrix
-        rmat <- cbind(user_ratings, ratingmat)
-        
-        # get the indices of which cells in the matrix should be predicted
-        # predict all books the current user has not yet rated
-        items_to_predict <- which(rmat[, 1] == 0)
-        prediction_indices <- as.matrix(expand.grid(items_to_predict, 1))
-        
-        # run the ubcf-alogrithm
-        res <- predict_cf(rmat, prediction_indices, "ubcf", TRUE, cal_cos, 1000, FALSE, 2000, 1000)
-        
-        # sort, organize, and return the results
-        user_results <- sort(res[, 1], decreasing = TRUE)[1:20]
-        user_predicted_ids <- as.numeric(names(user_results))
-        recom_results <- data.table(Rank = 1:20, 
-                                    Book_id = user_predicted_ids, 
-                                    Author = books$authors[user_predicted_ids], 
-                                    Title = books$title[user_predicted_ids], 
-                                    Predicted_rating =  user_results)
-        
+    withBusyIndicatorServer("btn", {
+      # showing the busy indicator
+      # hide the rating container
+      useShinyjs()
+      jsCode <-
+        "document.querySelector('[data-widget=collapse]').click();"
+      runjs(jsCode)
+      
+      # get the user's rating data
+      value_list <- reactiveValuesToList(input)
+      user_ratings <- get_user_ratings(value_list)
+      
+      user_results = predict(rec_ibcf, user_ratings, n = 10)
+      
+      top = user_results@items$newUser
+      movienames = c()
+      for(i in 1:10){
+        name = movies$Title[which(movies$MovieID==top[i])]
+        movienames = c(movienames,  name)
+      }
+      
+      
+      recom_results <- data.table(
+        Rank = 1:10,
+        MovieID = user_results@items$newUser,
+        Title = movienames
+      ) 
+      #recom_results#,
+      #print(test)
+      #Predicted_rating =  user_results@ratings$newUser)
+      
     }) # still busy
     
   }) # clicked on button
   
-
+  
   # display the recommendations
   output$results <- renderUI({
-    num_rows <- 4
-    num_books <- 5
+    num_rows <- 2
+    num_movies <- 5
     recom_result <- df()
     
     lapply(1:num_rows, function(i) {
-      list(fluidRow(lapply(1:num_books, function(j) {
-        box(width = 2, status = "success", solidHeader = TRUE, title = paste0("Rank ", (i - 1) * num_books + j),
-            
-          div(style = "text-align:center", 
-              a(href = paste0('https://www.goodreads.com/book/show/', books$best_book_id[recom_result$Book_id[(i - 1) * num_books + j]]), 
-                target='blank', 
-                img(src = books$image_url[recom_result$Book_id[(i - 1) * num_books + j]], height = 150))
-             ),
-          div(style = "text-align:center; color: #999999; font-size: 80%", 
-              books$authors[recom_result$Book_id[(i - 1) * num_books + j]]
-             ),
-          div(style="text-align:center; font-size: 100%", 
-              strong(books$title[recom_result$Book_id[(i - 1) * num_books + j]])
-             )
+      list(fluidRow(lapply(1:num_movies, function(j) {
+        box(
+          width = 2,
+          status = "success",
+          solidHeader = TRUE,
+          title = paste0("Rank ", (i - 1) * num_movies + j),
           
-        )        
+          div(style = "text-align:center",
+              a(
+                img(src = movies$image_url[which(recom_result$MovieID[(i - 1) * num_movies + j] == movies$MovieID)], height = 150)
+              )),
+          div(style = "text-align:center; font-size: 100%",
+              strong(movies$Title[which(recom_result$MovieID[(i - 1) * num_movies + j] == movies$MovieID)]))
+          
+        )
       }))) # columns
     }) # rows
     

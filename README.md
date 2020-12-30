@@ -2,7 +2,7 @@
 
 This is code for a shiny app for a movie recommender based on 2 types of recommender systems. 
 
-The app is can be found here: [redacted]
+The app is can be found here: https://tbybee.shinyapps.io/MovieRecommender/
 
 Acknowledgements
 
